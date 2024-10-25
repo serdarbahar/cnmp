@@ -18,10 +18,10 @@ def predict_inverse(model, idx, time_len, condition_points, d_x, d_y1, d_y2, dat
     
     num_conditions = len(condition_points)
     obs = torch.zeros((num_conditions, d_x + d_y1))
-    for i in range(num_conditions):
-        x_obs = torch.from_numpy(X1[0, condition_points[i]:condition_points[i]+1])
-        y_obs = torch.from_numpy(Y1[idx, condition_points[i]:condition_points[i]+1])
-        obs[i] = torch.cat((x_obs, y_obs), dim=-1)
+    for condition in condition_points:
+        x_obs = torch.tensor(condition[0]).view(1, 1)
+        y_obs = torch.tensor(condition[1]).view(1, 1)
+        obs[condition_points.index(condition)] = torch.cat((x_obs, y_obs), dim=-1)
     
     obs = obs.double()
 
@@ -31,7 +31,7 @@ def predict_inverse(model, idx, time_len, condition_points, d_x, d_y1, d_y2, dat
     with torch.no_grad():
         for x_tar in torch.linspace(0, 1, time_len):
             x_tar = x_tar.view(1, 1)
-            l = model.encoder2(obs) # (2, 128)
+            l = model.encoder1(obs) # (2, 128)
             a1 = torch.mean(l, dim=0, keepdim=True)  # (1, 128)
             concat = torch.cat((a1, x_tar), dim=-1)  # (1, d_x + 128)
             output = model.decoder2(concat)  # (2*d_y1,)
@@ -52,35 +52,27 @@ class DualEncoderDecoder(nn.Module):
         self.d_y2 = d_y2
         
         self.encoder1 = nn.Sequential(
-            nn.Linear(d_x + d_y1, 32), nn.ReLU(),
-            nn.Linear(32, 64), nn.ReLU(),
-            nn.Linear(64, 64), nn.ReLU(),
-            nn.Linear(64, 128), nn.ReLU(),
-            nn.Linear(128, 256), nn.ReLU(),
-            nn.Linear(256, 128)
+            nn.Linear(d_x + d_y1, 128), nn.ReLU(),
+            nn.Linear(128, 128), nn.ReLU(),
+            nn.Linear(128, 128), 
         )
 
         self.encoder2 = nn.Sequential(
-            nn.Linear(d_x + d_y2, 32), nn.ReLU(),
-            nn.Linear(32, 64), nn.ReLU(),
-            nn.Linear(64, 64), nn.ReLU(),
-            nn.Linear(64, 128), nn.ReLU(),
-            nn.Linear(128, 256), nn.ReLU(),
-            nn.Linear(256, 128)
+            nn.Linear(d_x + d_y2, 128), nn.ReLU(),
+            nn.Linear(128, 128), nn.ReLU(),
+            nn.Linear(128, 128), 
         )
 
         self.decoder1 = nn.Sequential(
-            nn.Linear(d_x + 128, 256), nn.ReLU(),
-            nn.Linear(256, 128), nn.ReLU(),
-            nn.Linear(128, 32), nn.ReLU(),
-            nn.Linear(32, 2*d_y1)
+            nn.Linear(d_x + 128, 128), nn.ReLU(),
+            nn.Linear(128, 128), nn.ReLU(),
+            nn.Linear(128, 2*d_y1)
         )
 
         self.decoder2 = nn.Sequential(
-            nn.Linear(d_x + 128, 256), nn.ReLU(),
-            nn.Linear(256, 128), nn.ReLU(),
-            nn.Linear(128, 32), nn.ReLU(),
-            nn.Linear(32, 2*d_y2)
+            nn.Linear(d_x + 128, 128), nn.ReLU(),
+            nn.Linear(128, 128), nn.ReLU(),
+            nn.Linear(128, 2*d_y2)
         )
 
     def forward(self, obs, x_tar, p=0):
@@ -100,7 +92,7 @@ class DualEncoderDecoder(nn.Module):
             p2 = torch.rand(1).double()
             p1 = p1 / (p1 + p2)
             
-            latent = a1 * p + a2 * (1-p)  # (1,128)  
+            latent = a1 * p1 + a2 * (1-p1)  # (1,128)  
 
         concat = torch.cat((latent, x_tar), dim=-1) # (n, d_x + 128)
 
@@ -114,14 +106,17 @@ def log_prob_loss(output, targets, d_y1):
     mean1, std1 = output1.chunk(2, dim=-1)
     mean2, std2 = output2.chunk(2, dim=-1)
     std1 = F.softplus(std1) + 1e-6
-    std2 = F.softplus(std2)
+    std2 = F.softplus(std2) + 1e-6
     dist1 = D.Independent(D.Normal(loc=mean1, scale=std1), 1)
     dist2 = D.Independent(D.Normal(loc=mean2, scale=std2), 1)
     return -torch.mean((dist1.log_prob(targets[0]))+(dist2.log_prob(targets[1])))
 
-def get_training_sample(X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
+def get_training_sample(validation_idx, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
     n = np.random.randint(0, OBS_MAX) + 1  # random number of obs. points
+    
     d = np.random.randint(0, d_N) # random trajectory
+    #while d == validation_idx:
+    #    d = np.random.randint(0, d_N)
 
     observations = np.zeros((n, 2 * d_x + d_y1 + d_y2))
     target_X = np.zeros((1, d_x))

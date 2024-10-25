@@ -11,40 +11,88 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 
-def upper_lower_arcs(x, param, noise = 0):
+def gaussian_with_offset(param, noise = 0):
     def dist(x, param, noise = 0):
         f = (math.exp(-x**2/(2.*param[0]**2))/(math.sqrt(2*math.pi)*param[0]))+param[1]
         return f+(noise*(np.random.rand()-0.5)/100.)
     return dist
 
-def generate_demonstrations(time_len = 100, params = None, plot_title = None):
+def x_sinx(param, noise = 0):
+    def dist(x, param, noise = 0):
+        f =  2*x  + math.sin(param[0] * x) #+ param[1]
+        return f+(noise*(np.random.rand()-0.5)/100.)
+    return dist
 
-    params = np.array([[0.6,-0.1],[0.5,-0.23],[0.4,-0.43],[-0.6,0.1],[-0.5,0.23],[-0.4,0.43]])
-    
+def generate_demonstrations(time_len = 200, params = None, plot_title = None):
 
-    num_demo = params.shape[0]
-    x = np.linspace(-0.5, 0.5, time_len)
-    times = np.zeros((num_demo, time_len, 1))
-    times[:] = x.reshape((1, time_len, 1)) + 0.5
-    values = np.zeros((num_demo, time_len, 1))
 
+    num_demo = 128
+    x = np.linspace(0, 1, time_len)
+    times = np.zeros((2*num_demo, time_len, 1))
+    times[:] = x.reshape((1, time_len, 1))
+    values = np.zeros((2*num_demo, time_len, 1))
+
+    """
     for d in range(num_demo):
-        dist = upper_lower_arcs(time_len, params[d], plot_title)
+        #dist = gaussian_with_offset(params[d])
+        dist = x_sinx(params[d])
         for i in range(time_len):
             values[d, i] = dist(x[i], params[d])
-        plt.plot(times[d], values[d], color='black')
-    
+            # reverse array
+        values[d+num_demo] = np.flip(values[d])
+        # normalize between -1 , 1
+        values[d] = (values[d] - np.min(values[d])) / (np.max(values[d]) - np.min(values[d])) * 2 - 1
+        values[d+num_demo] = (values[d+num_demo] - np.min(values[d+num_demo])) / (np.max(values[d+num_demo]) - np.min(values[d+num_demo])) * 2 - 1
+        if d == validation_idx:
+            plt.plot(times[d], values[d], color= f"black") #, label = f"Forward Validation Trajectory")
+            plt.plot(times[d], values[d+num_demo], color= f"black") #, label = f"Inverse Validation Trajectory")
+        else:
+            plt.plot(times[d], values[d], color= f"{1 / ((d+1))}")
+            plt.plot(times[d], values[d+num_demo], color= f"{1 / ((d+1))}")
+    """
+
+    data_path = 'y.pt'
+
+    forward = torch.load(data_path, map_location='cpu').to('cpu').numpy().squeeze(-1)
+    inverse = np.flip(forward, axis=1)
+    inverse = inverse.copy()
+
+    for forward_traj, inverse_traj in zip(forward, inverse):
+        plt.plot(forward_traj, color='black', alpha=0.05)
+        plt.plot(inverse_traj, color='black', alpha=0.05)
+        
     plt.title(plot_title + ' Demonstrations')
     plt.ylabel('Y')
     plt.xlabel('time (t)')
-    plt.savefig("../figs/TrainingDemonjkj strations.png")
+    plt.savefig("../figs/TrainingDemonstrations.png")
     plt.show()
     
-    Y1 = values[:num_demo//2]
-    Y2 = values[num_demo//2:]
+    # num_demo is the half of the number of demonstrations
+    Y1 = forward.reshape(num_demo, time_len, 1)
+    Y2 = inverse.reshape(num_demo, time_len, 1)
     X1 = times[:1]
     X2 = times[:1]
-    return X1, X2, Y1, Y2
+
+    plt.title("Forward")
+    for i in range(num_demo):
+        plt.plot(times[i], forward[i], color = "black", alpha=0.05)
+    #plt.ylim(-0.3, 0.3)
+    plt.show()
+
+    plt.title("Inverse")
+    for i in range(num_demo):
+        plt.plot(times[i], inverse[i], color = "black", alpha=0.05)
+    #plt.ylim(-0.3, 0.3)
+    plt.show()
+
+    validation_forward = np.zeros((16, time_len, 1))
+    validation_inverse = np.zeros((16, time_len, 1))
+    for i in range(len(forward)):
+        if i % 8 == 0:
+            validation_forward[i//8] = Y1[i]
+            validation_inverse[i//8] = Y2[i]
+
+    return X1, X2, Y1, Y2, validation_forward, validation_inverse
 
 def test_model(best_m, best_s, means, stds, idx, demo_data, errors, time_len, condition_points, epoch_count, plot=False):
 
@@ -70,25 +118,30 @@ def test_model(best_m, best_s, means, stds, idx, demo_data, errors, time_len, co
 
 def plot_test(idx, Y1, Y2, means, stds, time_len, condition_points, epoch_count):
     d_N = Y1.shape[0]
+    print(Y1.shape)
+    T = np.linspace(0,1,time_len)
     for j in range(d_N):
         if j == idx:
                 ## make bolder
-            plt.plot(np.linspace(0, 100, time_len), Y1[j], color='blue', linewidth=4, label='Forward')
-            plt.plot(np.linspace(0, 100, time_len), Y2[j], color='red', linewidth=4, label='Inverse')
+            plt.plot(T, Y1[j], color='black', alpha=0.02)
+            plt.plot(T, Y2[j], color='red', label='Expected (Inverse)')
             continue
-        plt.plot(np.linspace(0, 100, time_len), Y1[j], color='black', alpha=0.4)
-        plt.plot(np.linspace(0, 100, time_len), Y2[j], color='black', alpha=0.4)
+        plt.plot(T, Y1[j], color='black', alpha=0.02)
+        plt.plot(T, Y2[j], color='black', alpha=0.02)
 
-    plt.plot(np.linspace(0, 100, time_len), means.detach()[0].numpy(), color='green', linewidth=3, label='Prediction')
-    plt.errorbar(np.linspace(0, 100, time_len), means.detach()[0].numpy(), yerr=stds.detach()[0].numpy(), color='black', alpha=0.2)
+    plt.plot(T, means.detach()[0].numpy(), color='green', label='Prediction')
+    plt.errorbar(T, means.detach()[0].numpy(), yerr=stds.detach()[0].numpy(), color='black', alpha=0.2)
     
     for i in range(len(condition_points)):
-        cd_pt = condition_points[i]
+        cd_pt_x = condition_points[i][0]
+        cd_pt_y = condition_points[i][1]
         if i == 0:
-            plt.scatter(cd_pt, Y1[idx, cd_pt], color='black', label='Observations')
+            pass
+            plt.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations')
             continue
-        plt.scatter(cd_pt, Y1[idx, cd_pt], color='black')
+        plt.scatter(cd_pt_x, cd_pt_y, color='black')
 
+    plt.title(f'Prediction at epoch {epoch_count}')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
     plt.savefig(f"../figs/Prediction_{epoch_count}.png")
@@ -104,24 +157,27 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
     plt.title('Loss')
     plt.show()
 
+    T = np.linspace(0,1,time_len)
+
     for i in range(d_N):
         if i == idx:
-            plt.plot(np.linspace(0, 100, time_len), Y1[i], color='blue', linewidth=4, label = 'Forward')
-            plt.plot(np.linspace(0, 100, time_len), Y2[i], color='red', linewidth=4, label = 'Inverse')
+            plt.plot(T, Y1[i], color='black', alpha=0.02)
+            plt.plot(T, Y2[i], color='red', label = 'Expected (Inverse)')
             continue
-        plt.plot(np.linspace(0, 100, time_len), Y1[i], color='black', alpha=0.4)
-        plt.plot(np.linspace(0, 100, time_len), Y2[i], color='black', alpha=0.4)
+        plt.plot(T, Y1[i], color='black', alpha=0.02)
+        plt.plot(T, Y2[i], color='black', alpha=0.02)
 
     ## add legend
-    plt.plot(np.linspace(0, 100, time_len), best_mean.detach()[0].numpy(), color='green', linewidth=3, label='Best Prediction')
-    plt.errorbar(np.linspace(0, 100, time_len), best_mean.detach()[0].numpy(), yerr=best_std.detach()[0].numpy(), color='black', alpha=0.2)
+    plt.plot(T, best_mean.detach()[0].numpy(), color='green', label='Best Prediction')
+    plt.errorbar(T, best_mean.detach()[0].numpy(), yerr=best_std.detach()[0].numpy(), color='black', alpha=0.2)
 
     for i in range(len(condition_points)):
-        cd_pt = condition_points[i]
+        cd_pt_x = condition_points[i][0]
+        cd_pt_y = condition_points[i][1]
         if i == 0:
-            plt.scatter(cd_pt, Y1[idx, cd_pt], color='black', label='Observations')
+            plt.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations')
             continue
-        plt.scatter(cd_pt, Y1[idx, cd_pt], color='black')
+        plt.scatter(cd_pt_x, cd_pt_y, color='black')
 
     plt.title('Best Prediction')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
