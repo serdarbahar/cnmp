@@ -98,7 +98,11 @@ class CNMP(nn.Module):
 
 ############################################################################################################
 
-X, Y = generate_demonstrations(time_len=200, params=np.array([[0.6,-0.1],[0.5,-0.23],[0.4,-0.43],[-0.6,0.1],[-0.5,0.23],[-0.4,0.43]]), title='Training')
+#X, Y = generate_demonstrations(time_len=200, params=np.array([[0.6,-0.1],[0.5,-0.23],[0.4,-0.43],[-0.6,0.1],[-0.5,0.23],[-0.4,0.43]]), title='Training')
+data_path = 'y.pt'
+Y = torch.load(data_path, map_location='cpu').to('cpu').numpy()
+X = np.linspace(0,1,time_len).reshape(1,time_len,1).repeat(Y.shape[0],axis=0)
+
 print('training X ', X.shape)
 print('training Y ',Y.shape)
 

@@ -55,24 +55,42 @@ class DualEncoderDecoder(nn.Module):
             nn.Linear(d_x + d_y1, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 128), 
+            #nn.Linear(d_x + d_y1, 32), nn.ReLU(),
+            #nn.Linear(32, 64), nn.ReLU(),
+            #nn.Linear(64, 64), nn.ReLU(),
+            #nn.Linear(64, 128), nn.ReLU(),
+            #nn.Linear(128, 128),
         )
 
         self.encoder2 = nn.Sequential(
             nn.Linear(d_x + d_y2, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 128), 
+            #nn.Linear(d_x + d_y2, 32), nn.ReLU(),
+            #nn.Linear(32, 64), nn.ReLU(),
+            #nn.Linear(64, 64), nn.ReLU(),
+            #nn.Linear(64, 128), nn.ReLU(),
+            #nn.Linear(128, 128),        
         )
 
         self.decoder1 = nn.Sequential(
             nn.Linear(d_x + 128, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 2*d_y1)
+            #nn.Linear(d_x + 128, 128), nn.ReLU(),
+            #nn.Linear(128, 64), nn.ReLU(),
+            #nn.Linear(64, 32), nn.ReLU(),
+            #nn.Linear(32, 2*d_y1)
         )
 
         self.decoder2 = nn.Sequential(
             nn.Linear(d_x + 128, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 2*d_y2)
+            #nn.Linear(d_x + 128, 128), nn.ReLU(),
+            #nn.Linear(128, 64), nn.ReLU(),
+            #nn.Linear(64, 32), nn.ReLU(),
+            #nn.Linear(32, 2*d_y2)
         )
 
     def forward(self, obs, x_tar, p=0):
@@ -111,12 +129,12 @@ def log_prob_loss(output, targets, d_y1):
     dist2 = D.Independent(D.Normal(loc=mean2, scale=std2), 1)
     return -torch.mean((dist1.log_prob(targets[0]))+(dist2.log_prob(targets[1])))
 
-def get_training_sample(validation_idx, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
+def get_training_sample(validation_indices, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
     n = np.random.randint(0, OBS_MAX) + 1  # random number of obs. points
     
     d = np.random.randint(0, d_N) # random trajectory
-    #while d == validation_idx:
-    #    d = np.random.randint(0, d_N)
+    while d in validation_indices:
+        d = np.random.randint(0, d_N)
 
     observations = np.zeros((n, 2 * d_x + d_y1 + d_y2))
     target_X = np.zeros((1, d_x))

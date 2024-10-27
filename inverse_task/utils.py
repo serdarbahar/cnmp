@@ -26,7 +26,7 @@ def x_sinx(param, noise = 0):
 def generate_demonstrations(time_len = 200, params = None, plot_title = None):
 
 
-    num_demo = 128
+    num_demo = 64
     x = np.linspace(0, 1, time_len)
     times = np.zeros((2*num_demo, time_len, 1))
     times[:] = x.reshape((1, time_len, 1))
@@ -54,6 +54,9 @@ def generate_demonstrations(time_len = 200, params = None, plot_title = None):
     data_path = 'y.pt'
 
     forward = torch.load(data_path, map_location='cpu').to('cpu').numpy().squeeze(-1)
+    # take only odd indices, use np
+    forward = forward[1::2]
+
     inverse = np.flip(forward, axis=1)
     inverse = inverse.copy()
 
@@ -94,7 +97,7 @@ def generate_demonstrations(time_len = 200, params = None, plot_title = None):
 
     return X1, X2, Y1, Y2, validation_forward, validation_inverse
 
-def test_model(best_m, best_s, means, stds, idx, demo_data, errors, time_len, condition_points, epoch_count, plot=False):
+def validate_model(means, stds, idx, demo_data, time_len, condition_points, epoch_count, plot=False):
 
     X1, X2, Y1, Y2 = demo_data
 
@@ -102,19 +105,11 @@ def test_model(best_m, best_s, means, stds, idx, demo_data, errors, time_len, co
     target_demo = torch.from_numpy(target_demo).double()
     target_demo = target_demo.reshape(1,-1)
     error = torch.mean(torch.nn.functional.mse_loss(means, target_demo))
-    target_demo = target_demo.reshape(-1,1)
-    errors.append(error.item())
-
-    best_mean = best_m
-    best_std = best_s
-    if error <= min(errors):
-        best_mean = means
-        best_std = stds
 
     if plot:
         plot_test(idx, Y1, Y2, means, stds, time_len, condition_points, epoch_count)
-
-    return errors, best_mean, best_std     
+    
+    return error
 
 def plot_test(idx, Y1, Y2, means, stds, time_len, condition_points, epoch_count):
     d_N = Y1.shape[0]
@@ -153,7 +148,10 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
     plt.title('Errors')
     plt.show()
 
+    plt.figure(figsize=(20, 10))
     plt.plot(losses)
+    plt.grid()
+    plt.ylim(-6, 100)    
     plt.title('Loss')
     plt.show()
 
