@@ -1,0 +1,6 @@
+wandb_version: 1
+
+epochs:
+  value: 197927
+lr:
+  value: 0.00010320177326578638

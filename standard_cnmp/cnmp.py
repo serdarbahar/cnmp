@@ -13,19 +13,27 @@ def generate_demonstrations(time_len = 200, params = None, title = None):
     def dist_generator(d, x, param, noise = 0):
         f = (math.exp(-x**2/(2.*param[0]**2))/(math.sqrt(2*math.pi)*param[0]))+param[1]
         return f+(noise*(np.random.rand()-0.5)/100.)
+    def sinx(x, frequency, amplitude, phase):
+        return amplitude * math.sin(2 * math.pi * frequency * x + phase)
+    
+    num_demo = 32
+    frequencies = [1]
+    amplitudes = np.linspace(0.5,1,num_demo)
+    phases = [0] 
+
     #fig = plt.figure(figsize=(5,5))
     x = np.linspace(-0.5,0.5,time_len)
-    times = np.zeros((params.shape[0],time_len,1))
+    times = np.zeros((num_demo,time_len,1))
     times[:] = x.reshape((1,time_len,1))+0.5
-    values = np.zeros((params.shape[0],time_len,1))
-    for d in range(params.shape[0]):
-            for i in range(time_len):
-                values[d,i] = dist_generator(d,x[i],params[d])
-            plt.plot(times[d], values[d])
+    values = np.zeros((num_demo,time_len,1))
+    for d in range(num_demo):
+        for i in range(time_len):
+            values[d,i] = sinx(times[0][i][0], frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+        plt.plot(times[d], values[d], color="black", alpha=0.05)
     #plt.title(title+' Demonstrations')
     #plt.ylabel('Y')
     #plt.xlabel('time (t)')
-    #plt.show()
+    plt.show()
     return times, values
 
 # gets random number of random obs. points from a random trajectory. Also gets a 
@@ -98,10 +106,8 @@ class CNMP(nn.Module):
 
 ############################################################################################################
 
-#X, Y = generate_demonstrations(time_len=200, params=np.array([[0.6,-0.1],[0.5,-0.23],[0.4,-0.43],[-0.6,0.1],[-0.5,0.23],[-0.4,0.43]]), title='Training')
-data_path = 'y.pt'
-Y = torch.load(data_path, map_location='cpu').to('cpu').numpy()
-X = np.linspace(0,1,time_len).reshape(1,time_len,1).repeat(Y.shape[0],axis=0)
+X, Y = generate_demonstrations(time_len=200, params=np.array([[0.6,-0.1],[0.5,-0.23],[0.4,-0.43],[-0.6,0.1],[-0.5,0.23],[-0.4,0.43]]), title='Training')
+
 
 print('training X ', X.shape)
 print('training Y ',Y.shape)
@@ -113,11 +119,9 @@ d_N = X.shape[0]
 
 model = CNMP(d_x, d_y).double()
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
-print(model.eval())
+#print(model.eval())
 
 for i in range(100000):
-    if i % 10000 == 0:
-        print('iteration ', i)
 
     obs, x_tar, y_tar = get_training_sample()
 
@@ -129,6 +133,11 @@ for i in range(100000):
     loss.backward()
     optimizer.step()
     #print('loss ', loss.item())
+
+    if i % 1000 == 0:
+        #print('iteration ', i)
+        print('loss ', loss.item())
+        
 
 
 predicted_Y,predicted_std = predict_model((np.concat((X[0,:1],Y[0,:1]), axis=-1)),X[0])

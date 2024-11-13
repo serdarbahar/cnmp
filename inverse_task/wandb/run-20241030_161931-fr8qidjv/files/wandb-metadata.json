@@ -1,0 +1,38 @@
+{
+  "os": "macOS-14.1-arm64-arm-64bit",
+  "python": "3.9.6",
+  "startedAt": "2024-10-30T13:19:31.288762Z",
+  "program": "/Users/serdarbahar/Desktop/cnmp/inverse_task/inverse.ipynb",
+  "git": {
+    "remote": "https://github.com/serdarbahar/cnmp.git",
+    "commit": "0f0214e40b047980ec7e7a7ba33a0b0be2de450c"
+  },
+  "email": "serdarbahar44@gmail.com",
+  "root": "/Users/serdarbahar/Desktop/cnmp/inverse_task",
+  "host": "Serdar-MacBook-Pro.local",
+  "username": "serdarbahar",
+  "executable": "/Library/Developer/CommandLineTools/usr/bin/python3",
+  "codePathLocal": "inverse.ipynb",
+  "cpu_count": 11,
+  "cpu_count_logical": 11,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "395432071168"
+    }
+  },
+  "memory": {
+    "total": "19327352832"
+  },
+  "cpu": {
+    "count": 11,
+    "countLogical": 11
+  },
+  "apple": {
+    "name": "Apple M3 Pro",
+    "ecpuCores": 6,
+    "pcpuCores": 5,
+    "gpuCores": 14,
+    "memoryGb": 18
+  }
+}

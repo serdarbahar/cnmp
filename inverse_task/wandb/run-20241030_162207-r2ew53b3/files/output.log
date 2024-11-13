@@ -1,0 +1,18 @@
+Epoch: 0, Loss: 0.5009850148541046
+/Users/serdarbahar/Desktop/cnmp/inverse_task/utils.py:128: UserWarning: Using a target size (torch.Size([1, 200])) that is different to the input size (torch.Size([200])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size.
+  error = torch.mean(torch.nn.functional.mse_loss(means, target_demo))
+Epoch: 1000, Loss: 0.04397382637071212
+Epoch: 2000, Loss: -0.3773806837393727
+Epoch: 3000, Loss: -0.258026045129393
+Epoch: 4000, Loss: 0.4784683269587582
+Epoch: 5000, Loss: 0.23159781482225106
+Epoch: 6000, Loss: -0.43008391443610083
+Epoch: 7000, Loss: 0.18139864976543651
+Epoch: 8000, Loss: -0.5204870928999108
+Epoch: 9000, Loss: -1.0464728030860466
+Epoch: 10000, Loss: -1.4747719672624915
+Epoch: 11000, Loss: -0.6439008317596628
+Epoch: 12000, Loss: -0.7282148963053734
+Epoch: 13000, Loss: -1.2330492670542124
+Epoch: 14000, Loss: 0.7504252535966498
+[34m[1mwandb[0m: Ctrl + C detected. Stopping sweep.
