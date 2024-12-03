@@ -51,23 +51,23 @@ class DualEncoderDecoder(nn.Module):
         self.encoder1 = nn.Sequential(
             nn.Linear(d_x + d_y1, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
-            nn.Linear(128, 128), 
+            nn.Linear(128, 256), 
         )
 
         self.encoder2 = nn.Sequential(
             nn.Linear(d_x + d_y2, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
-            nn.Linear(128, 128),     
+            nn.Linear(128, 256),     
         )
 
         self.decoder1 = nn.Sequential(
-            nn.Linear(d_x + 128, 128), nn.ReLU(),
+            nn.Linear(d_x + 256, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 2*d_y1)
         )
 
         self.decoder2 = nn.Sequential(
-            nn.Linear(d_x + 128, 128), nn.ReLU(),
+            nn.Linear(d_x + 256, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 2*d_y2)
         )
@@ -105,9 +105,9 @@ def log_prob_loss(output, targets, d_y1):
     mean2, std2 = output2.chunk(2, dim=-1)
     std1 = F.softplus(std1)
     std2 = F.softplus(std2)
-    dist1 = D.Independent(D.Normal(loc=mean1, scale=std1), np.array(targets).shape[1])
-    dist2 = D.Independent(D.Normal(loc=mean2, scale=std2), np.array(targets).shape[1])
-    return -torch.mean((dist1.log_prob(targets[0]))) - torch.mean((dist2.log_prob(targets[1])))
+    dist1 = D.Independent(D.Normal(loc=mean1, scale=std1), 1)
+    dist2 = D.Independent(D.Normal(loc=mean2, scale=std2), 1)
+    return -torch.mean((dist1.log_prob(targets[0])) + (dist2.log_prob(targets[1])))
 
 def get_training_sample(validation_indices, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
     n = np.random.randint(10, OBS_MAX) + 1  # random number of obs. points
@@ -128,7 +128,7 @@ def get_training_sample(validation_indices, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d
     observations[:,2*d_x+d_y1:] = Y2[d, perm[n:2*n]]
         
     perm = np.random.permutation(time_len)
-    m = np.random.randint(0, OBS_MAX) + 1 # number of targets
+    m = np.random.randint(0, 1) + 1 # number of targets
     target_X = X1[0, perm[:m]]
     target_Y1 = Y1[d, perm[:m]].reshape(1,-1)
     target_Y2 = Y2[d, perm[:m]].reshape(1,-1)

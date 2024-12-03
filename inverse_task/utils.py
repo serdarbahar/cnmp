@@ -41,11 +41,10 @@ def generate_demonstrations(num_demo, time_len = 200, params = None, plot_title 
     times[:] = x.reshape((1, time_len, 1))
     values = np.zeros((2*num_demo, time_len, 1))
 
-    frequencies = np.linspace(0.1,1,num_demo//7)  # Example frequencies
-    frequencies_1 = [1]
+    frequencies = np.linspace(0.75,1.5,num_demo//2)  # Example frequencies
     #frequencies = np.linspace(1,2,num_demo)
     #amplitudes = [1.1, 1]  # Example amplitudes
-    amplitudes = np.linspace(-1,1.0,num_demo//2)
+    amplitudes = np.linspace(0,1.0,num_demo//3)
     
     phases = [0]  # Example phases
         
@@ -53,12 +52,21 @@ def generate_demonstrations(num_demo, time_len = 200, params = None, plot_title 
         #dist = gaussian_with_offset(params[d])
         #dist = x_sinx(params[d])
 
+        """
         if d < num_demo//3:
             dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
         elif d > num_demo//3 and d < 2*num_demo//3:
             dist = linear(amplitudes[d % len(amplitudes)], -1 * amplitudes[d % len(amplitudes)])
         else:
             dist = x_sinx([0.7*amplitudes[d % len(amplitudes)], 20*frequencies[d % len(frequencies)]])
+        """
+        
+        if d < num_demo//2:
+            dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+        else:
+            dist = linear(amplitudes[(d-num_demo//2) % len(amplitudes)], -1 * amplitudes[(d-num_demo//2) % len(amplitudes)])
+        
+        # dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
 
         for i in range(time_len):
             values[d, i] = dist(x[i])
