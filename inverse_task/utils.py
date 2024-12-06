@@ -41,10 +41,11 @@ def generate_demonstrations(num_demo, time_len = 200, params = None, plot_title 
     times[:] = x.reshape((1, time_len, 1))
     values = np.zeros((2*num_demo, time_len, 1))
 
-    frequencies = np.linspace(0.75,1.5,num_demo//2)  # Example frequencies
+    #frequencies = np.linspace(0.75,1.5,num_demo//2)  # Example frequencies
+    frequencies = [1.0]  # Example frequencies
     #frequencies = np.linspace(1,2,num_demo)
     #amplitudes = [1.1, 1]  # Example amplitudes
-    amplitudes = np.linspace(0,1.0,num_demo//3)
+    amplitudes = np.linspace(0.5,1.0,num_demo//3)
     
     phases = [0]  # Example phases
         
@@ -60,13 +61,15 @@ def generate_demonstrations(num_demo, time_len = 200, params = None, plot_title 
         else:
             dist = x_sinx([0.7*amplitudes[d % len(amplitudes)], 20*frequencies[d % len(frequencies)]])
         """
-        
+
+        """
         if d < num_demo//2:
             dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
         else:
             dist = linear(amplitudes[(d-num_demo//2) % len(amplitudes)], -1 * amplitudes[(d-num_demo//2) % len(amplitudes)])
+        """
         
-        # dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+        dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
 
         for i in range(time_len):
             values[d, i] = dist(x[i])
@@ -194,7 +197,7 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
         plt.figure(figsize=(20, 10))
         plt.plot(losses)
         plt.grid()
-        plt.ylim(-6, 100)    
+        plt.ylim(-10, 100)    
         plt.title('Loss')
         plt.show()
 

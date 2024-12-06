@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 from sklearn.decomposition import PCA
-
+from sklearn.metrics.pairwise import cosine_similarity
 
 def predict_inverse(model, idx, time_len, condition_points, d_x, d_y1, d_y2, data):
 
@@ -32,7 +32,7 @@ def predict_inverse(model, idx, time_len, condition_points, d_x, d_y1, d_y2, dat
     with torch.no_grad():
         T = torch.linspace(0,1,time_len).reshape(-1,1)
         obs = torch.cat((obs,obs), dim=-1)
-        output = model(obs, T, p=1)
+        output, a1, a2 = model(obs, T, p=1)
         mean1, std1, mean2, std2 = output.chunk(4, dim=-1)
         std2 = np.log(1+np.exp(std2))
         means = mean2
@@ -49,13 +49,17 @@ class DualEncoderDecoder(nn.Module):
         self.d_y2 = d_y2
         
         self.encoder1 = nn.Sequential(
-            nn.Linear(d_x + d_y1, 128), nn.ReLU(),
+            nn.Linear(d_x + d_y1, 32), nn.ReLU(),
+            nn.Linear(32, 64), nn.ReLU(),
+            nn.Linear(64, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 256), 
         )
 
         self.encoder2 = nn.Sequential(
-            nn.Linear(d_x + d_y2, 128), nn.ReLU(),
+            nn.Linear(d_x + d_y2, 32), nn.ReLU(),
+            nn.Linear(32, 64), nn.ReLU(),
+            nn.Linear(64, 128), nn.ReLU(),
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, 256),     
         )
@@ -97,8 +101,24 @@ class DualEncoderDecoder(nn.Module):
         output1 = self.decoder1(concat)  # (2*d_y1,)
         output2 = self.decoder2(concat)  # (2*d_y2,)
 
-        return torch.cat((output1, output2), dim=-1) # (2*d_y1 + 2*d_y2,)
+        return torch.cat((output1, output2), dim=-1), a1, a2 # (2*d_y1 + 2*d_y2,)
     
+def loss(output, targets, d_y1, a1, a2):
+
+    ## normalize to [-1,1]
+    a1_min = torch.min(a1)
+    a1_max = torch.max(a1)
+    a2_min = torch.min(a2)
+    a2_max = torch.max(a2)
+
+    ## use mean std
+    a1 = (a1 - torch.mean(a1)) / torch.std(a1)
+    a2 = (a2 - torch.mean(a2)) / torch.std(a2)
+
+    # distance between a1 and a2
+    distance = torch.pairwise_distance(a1, a2, p=2)
+    return distance
+
 def log_prob_loss(output, targets, d_y1):
     output1, output2 = output[:, :2*d_y1], output[:, 2*d_y1:]
     mean1, std1 = output1.chunk(2, dim=-1)
@@ -108,9 +128,9 @@ def log_prob_loss(output, targets, d_y1):
     dist1 = D.Independent(D.Normal(loc=mean1, scale=std1), 1)
     dist2 = D.Independent(D.Normal(loc=mean2, scale=std2), 1)
     return -torch.mean((dist1.log_prob(targets[0])) + (dist2.log_prob(targets[1])))
-
+ 
 def get_training_sample(validation_indices, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
-    n = np.random.randint(10, OBS_MAX) + 1  # random number of obs. points
+    n = np.random.randint(0, OBS_MAX) + 1  # random number of obs. points
     
     d = np.random.randint(0, d_N) # random trajectory
     while d in validation_indices:
@@ -143,11 +163,23 @@ def plot_latent_space(model, observations_f, observations_i):
     l_i = np.array(l_i)
     l = np.concat((l_f,l_i), axis=0)
 
+    l = l.reshape(-1, 256)
+
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(l)
     print(pca_result.shape)
     return pca_result
 
 
-
+def compute_custom_loss(a1, a2):
+        ## cosine similarity
+        cos = torch.mean(F.cosine_similarity(a1, a2, dim=0))
         
+        ## mse 
+        mse = F.mse_loss(a1, a2)
+        return cos, mse
+
+def latent_space(model, observations):
+    with torch.no_grad():
+        l = model.encoder1(observations) # condition points is (n, d_x + d_y), l is (n, 128)
+    return l            
