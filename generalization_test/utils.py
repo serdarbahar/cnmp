@@ -1,5 +1,6 @@
 from cProfile import label
-from re import X
+from fileinput import filename
+from re import A, X
 from turtle import color
 from sympy import li
 import torch
@@ -10,6 +11,8 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import time
+import dual_enc_dec_cnmp
 
 def gaussian_with_offset(param, noise = 0):
     def dist(x, param, noise = 0):
@@ -50,29 +53,11 @@ def generate_demonstrations(num_demo, time_len = 200, params = None, plot_title 
     phases = [0]  # Example phases
         
     for d in range(num_demo):
-        #dist = gaussian_with_offset(params[d])
-        #dist = x_sinx(params[d])
-
-        """
-        if d < num_demo//3:
-            dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
-        elif d > num_demo//3 and d < 2*num_demo//3:
-            dist = linear(amplitudes[d % len(amplitudes)], -1 * amplitudes[d % len(amplitudes)])
-        else:
-            dist = x_sinx([0.7*amplitudes[d % len(amplitudes)], 20*frequencies[d % len(frequencies)]])
-        """
-
-        """
-        if d < num_demo//2:
-            dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
-        else:
-            dist = linear(amplitudes[(d-num_demo//2) % len(amplitudes)], -1 * amplitudes[(d-num_demo//2) % len(amplitudes)])
-        """
-        
-        dist = sinx(frequencies[d % len(frequencies)], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
 
         dist1 = sinx(frequencies[0], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
-    
+        dist2 = sinx(frequencies[1], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+        dist3 = sinx(frequencies[2], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+
         for i in range(time_len):
             values[d, i] = dist1(x[i]) #+ dist2(x[i]) + dist3(x[i])
         # reverse array
@@ -164,12 +149,12 @@ def plot_test(idx, Y1, Y2, means, stds, time_len, condition_points, epoch_count)
     T = np.linspace(0,1,time_len)
     for j in range(d_N):
         if j == idx:
-            print(j)
             plt.plot(T, Y1[j], color='blue', label='Forward')
             plt.plot(T, Y2[j], color='red', label='Expected (Inverse)')
             continue
         plt.plot(T, Y1[j], color='black', alpha=0.02)
-        plt.plot(T, Y2[j], color='black', alpha=0.02)
+        if j<96:
+            plt.plot(T, Y2[j], color='black', alpha=0.02)
 
     plt.plot(T, means.detach().numpy(), color='green', label='Prediction')
     plt.errorbar(T, means.detach().numpy(), yerr=stds.detach().numpy(), color='black', alpha=0.2)
@@ -214,9 +199,9 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
     sub1 = plt.subplot(1, 2, 2)
 
     for ax in (sub0, sub1):
-        ax.axhline(y=condition_points[0][-1], color='black', linewidth=0.5)
+        #ax.axhline(y=condition_points[0][-1], color='black', linewidth=0.5)
+        pass
 
-    
     for i in range(d_N):
         if i == 0:
             sub0.plot(T, Y1[i], color='black', alpha=0.06, label = "Forward Trajectories")
@@ -227,26 +212,31 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
         cd_pt_x = condition_points[i][0]
         cd_pt_y = condition_points[i][1]
         if i == 0:
-            sub0.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations') 
+            sub1.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations') 
             continue
-        sub0.scatter(cd_pt_x, cd_pt_y, color='black')
+        sub1.scatter(cd_pt_x, cd_pt_y, color='black')
     
     sub0.set_title('Forward Trajectories')
     sub0.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 
+    
     for i in range(d_N):
         if i == 0:
             sub1.plot(T, Y2[i], color='black', alpha=0.06, label = "Inverse Trajectories")
             continue
-        sub1.plot(T, Y2[i], color='black', alpha=0.06)
+        if i<96:
+            sub1.plot(T, Y2[i], color='black', alpha=0.06)
     
     ## add legend
-    sub1.plot(T, best_mean.detach().numpy(), color='green', label='Prediction')
-    sub1.errorbar(T, best_mean.detach().numpy(), yerr=best_std.detach().numpy(), color='black', alpha=0.2)
+    sub0.plot(T, best_mean.detach().numpy(), color='green', label='Prediction')
+    sub0.errorbar(T, best_mean.detach().numpy(), yerr=best_std.detach().numpy(), color='black', alpha=0.2)
 
-    sub0.set_yticks(np.arange(-2.5,2.5,0.1))
-    sub1.set_yticks(np.arange(-2.5,2.5,0.1))        
+    # set y-ticks for every 0.1 from -2.5 to 2.5, for two axes
+    sub1.set_yticks(np.arange(-0.7, 0.7, 0.1))
+    sub0.set_yticks(np.arange(-0.7, 0.7, 0.1))
+    sub0.grid(alpha=0.3)
+    sub1.grid(alpha=0.3)
 
     if test_dist:
         dist, i, num_validate = test_dist[0], test_dist[1], test_dist[2]
@@ -260,49 +250,114 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
     sub1.set_title('Inverse Trajectories and Best Prediction')
     sub1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
-    plt.savefig("../figs/Results.png")
+    t = int(time.time())
+    plt.savefig(f"../figs/Results.png")
     plt.show()
 
-def forward_inverse_weights(model):
-    weights = model.state_dict()
-    ## store encoder1.0,2,4 weights and biases
-    encoder1_0_weights = weights['encoder1.0.weight']
-    encoder1_0_bias = weights['encoder1.0.bias']
-    encoder1_2_weights = weights['encoder1.2.weight']
-    encoder1_2_bias = weights['encoder1.2.bias']
-    encoder1_4_weights = weights['encoder1.4.weight']
-    encoder1_4_bias = weights['encoder1.4.bias']
-    E1 = np.concat([encoder1_0_weights.flatten(), encoder1_2_weights.flatten(), encoder1_4_weights.flatten(), encoder1_0_bias.flatten(), encoder1_2_bias.flatten(), encoder1_4_bias.flatten()], axis=0)
+
+def plot_results_ii(best_mean, best_std, Y1, Y2, idx, condition_points, errors, losses, time_len, d_N, plot_errors=True, test_dist=None):
+    
+    T = np.linspace(0,1,time_len)
+
+    #plot Y1 and Y2 in different subplots
+
+    plt.figure(figsize=(10,5))
+
+    """
+    for i in range(d_N):
+        if i == 0:
+            plt.plot(T, Y1[i], color='black', alpha=0.06, label = "Forward Trajectories")
+            continue
+        plt.plot(T, Y1[i], color='black', alpha=0.06)
+    """
+    
+    for i in range(len(condition_points)):
+        cd_pt_x = condition_points[i][0]
+        cd_pt_y = condition_points[i][1]
+        if i == 0:
+            plt.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations') 
+            continue
+        plt.scatter(cd_pt_x, cd_pt_y, color='black')
+    
+    
+    for i in range(d_N):
+        if i == 0:
+            plt.plot(T, Y2[i], color='black', alpha=0.06, label = "Inverse Trajectories")
+            continue
+        if i<96:
+            plt.plot(T, Y2[i], color='black', alpha=0.06)
+    
+    ## add legend
+    plt.plot(T, best_mean.detach().numpy(), color='green', label='Prediction')
+    plt.errorbar(T, best_mean.detach().numpy(), yerr=best_std.detach().numpy(), color='black', alpha=0.2)
+
+    # set y-ticks for every 0.1 from -2.5 to 2.5, for two axes
+    plt.yticks(np.arange(-0.7, 0.7, 0.1))
+    plt.grid(alpha=0.3)
+
+    plt.title('Inverse Trajectories and Best Prediction')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.tight_layout()
+    t = int(time.time())
+    plt.savefig(f"../figs/Results.png")
+    plt.show()
 
 
-    ## store encoder2.0,2,4 weights and biases
-    encoder2_0_weights = weights['encoder2.0.weight']
-    encoder2_0_bias = weights['encoder2.0.bias']
-    encoder2_2_weights = weights['encoder2.2.weight']
-    encoder2_2_bias = weights['encoder2.2.bias']
-    encoder2_4_weights = weights['encoder2.4.weight']
-    encoder2_4_bias = weights['encoder2.4.bias']
-    E2 = np.concat([encoder2_0_weights.flatten(), encoder2_2_weights.flatten(), encoder2_4_weights.flatten(), encoder2_0_bias.flatten(), encoder2_2_bias.flatten(), encoder2_4_bias.flatten()], axis=0)
+def plot_latent_tsne(model, Y1, Y2, epoch):
+    
+    time_len=200
+    time_ = [0.25, 0.75]
 
-    ## store decoder1.0,2,4 weights and biases
-    decoder1_0_weights = weights['decoder1.0.weight']
-    decoder1_0_bias = weights['decoder1.0.bias']
-    decoder1_2_weights = weights['decoder1.2.weight']
-    decoder1_2_bias = weights['decoder1.2.bias']
-    decoder1_4_weights = weights['decoder1.4.weight']
-    decoder1_4_bias = weights['decoder1.4.bias']
-    D1 = np.concat([decoder1_0_weights.flatten(), decoder1_2_weights.flatten(), decoder1_4_weights.flatten(), decoder1_0_bias.flatten(), decoder1_2_bias.flatten(), decoder1_4_bias.flatten()], axis=0)
+    ## do the same for t = 0.25 and t = 0.75, obtain the pca result for all the points
 
-    ## store decoder2.0,2,4 weights and biases
-    decoder2_0_weights = weights['decoder2.0.weight']
-    decoder2_0_bias = weights['decoder2.0.bias']
-    decoder2_2_weights = weights['decoder2.2.weight']
-    decoder2_2_bias = weights['decoder2.2.bias']
-    decoder2_4_weights = weights['decoder2.4.weight']
-    decoder2_4_bias = weights['decoder2.4.bias']
-    D2 = np.concat([decoder2_0_weights.flatten(), decoder2_2_weights.flatten(), decoder2_4_weights.flatten(), decoder2_0_bias.flatten(), decoder2_2_bias.flatten(), decoder2_4_bias.flatten()], axis=0)
+    intervals_y_f = []
+    intervals_y_i = []
 
-    F = np.concat([E1,D2], axis=0)
-    I = np.concat([E2,D1], axis=0)
+    all_observations_f = []  
+    all_observations_i = []
 
-    return F, I
+    NUM_STEP = 200
+
+    for t in time_:
+        min_y_f = torch.min(Y1[:, int(t * time_len)])
+        max_y_f = torch.max(Y1[:, int(t * time_len)])
+        interval_y_f = torch.linspace(min_y_f, max_y_f, NUM_STEP)
+        if t > 0.5:
+            interval_y_f = torch.flip(interval_y_f, dims=[0])
+        intervals_y_f.append(interval_y_f)
+
+        min_y_i = torch.min(Y2[:, int(t * time_len)])
+        max_y_i = torch.max(Y2[:, int(t * time_len)])
+        interval_y_i = torch.linspace(min_y_i, max_y_i, NUM_STEP)
+        if t < 0.5:
+            interval_y_i = torch.flip(interval_y_i, dims=[0])
+        intervals_y_i.append(interval_y_i)
+
+        for idx in interval_y_f:
+            condition_points = [[t, idx]]
+            all_observations_f.append(condition_points)
+        for idx in interval_y_i:
+            condition_points = [[t, idx]]
+            all_observations_i.append(condition_points)
+
+    all_observations_f = torch.tensor(all_observations_f)
+    all_observations_i = torch.tensor(all_observations_i)
+
+    tsne_result = dual_enc_dec_cnmp.tsne_analysis(model, all_observations_f, all_observations_i) # [ft0, ft1, ... , it0, it1, ...]
+    plt.figure(figsize=(5, 5))
+    for i, t in enumerate(time_):
+        plt.scatter(tsne_result[i*NUM_STEP:(i+1)*NUM_STEP, 0], tsne_result[i*NUM_STEP:(i+1)*NUM_STEP, 1], label=f"t={t} forward", s=8)
+    
+    for i, t in enumerate(time_):
+        plt.scatter(tsne_result[(i+len(time_))*NUM_STEP:(i+len(time_)+1)*NUM_STEP, 0], tsne_result[(i+len(time_))*NUM_STEP:(i+len(time_)+1)*NUM_STEP, 1], 
+                    label=f"t={t} inverse", s=8)
+    
+    
+    plt.legend()
+    plt.title(f"t-SNE plot for latent space at epoch {epoch}")
+    filename = time.time()
+    plt.tight_layout()
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid()
+    plt.savefig(f"../figs/tsne_{filename}.png", bbox_inches='tight')
+    plt.show()
