@@ -2,6 +2,7 @@ from cProfile import label
 from fileinput import filename
 from re import A, X
 from turtle import color
+from pyparsing import lineEnd
 from sympy import li
 import torch
 import torch.nn as nn
@@ -31,7 +32,6 @@ def sinx(frequency, amplitude, phase):
         return amplitude * math.sin(2 * torch.pi * frequency * x + phase) # + torch.randn(1) * 0.05
     return dist
 
-# write a linear function
 def linear(min, max):
     def dist(x):
         return max * x + min * (1-x)
@@ -55,13 +55,16 @@ def generate_demonstrations(num_demo, time_len = 200, params = None, plot_title 
     for d in range(num_demo):
 
         dist1 = sinx(frequencies[0], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
-        dist2 = sinx(frequencies[1], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
-        dist3 = sinx(frequencies[2], amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+        dist2 = sinx(2*frequencies[1], 0.3*amplitudes[d % len(amplitudes)], phases[d % len(phases)])
+        dist3 = sinx(frequencies[2], 0.5*amplitudes[d % len(amplitudes)], phases[d % len(phases)])
 
         for i in range(time_len):
             values[d, i] = dist1(x[i]) #+ dist2(x[i]) + dist3(x[i])
         # reverse array
-        values[d+num_demo] = np.flip(values[d], axis=0)
+        for i in range(time_len):
+            values[d+num_demo, i] =  dist1(x[i]) + dist2(x[i]) + dist3(x[i]) # np.flip(values[d], axis=0)
+
+        values[d+num_demo] = np.flip(values[d+num_demo], axis=0)
         #values[d+num_demo] = -1 * values[d]
         # normalize between -1 , 1
         #values[d] = (values[d] - np.min(values[d])) / (np.max(values[d]) - np.min(values[d])) * 2 - 1
@@ -204,33 +207,30 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
 
     for i in range(d_N):
         if i == 0:
-            sub0.plot(T, Y1[i], color='black', alpha=0.06, label = "Forward Trajectories")
+            sub0.plot(T, Y1[i], color='black', alpha=0.1, label = "Forward Trajectories")
             continue
-        sub0.plot(T, Y1[i], color='black', alpha=0.06)
+        sub0.plot(T, Y1[i], color='black', alpha=0.1)
     
     for i in range(len(condition_points)):
         cd_pt_x = condition_points[i][0]
         cd_pt_y = condition_points[i][1]
         if i == 0:
-            sub1.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations') 
+            sub0.scatter(cd_pt_x, cd_pt_y, color='black', label='Observations') 
             continue
-        sub1.scatter(cd_pt_x, cd_pt_y, color='black')
+        sub0.scatter(cd_pt_x, cd_pt_y, color='black')
     
     sub0.set_title('Forward Trajectories')
     sub0.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
-
     
     for i in range(d_N):
         if i == 0:
-            sub1.plot(T, Y2[i], color='black', alpha=0.06, label = "Inverse Trajectories")
+            sub1.plot(T, Y2[i], color='black', alpha=0.1, label = "Inverse Trajectories")
             continue
-        if i<96:
-            sub1.plot(T, Y2[i], color='black', alpha=0.06)
+        sub1.plot(T, Y2[i], color='black', alpha=0.1)
     
     ## add legend
-    sub0.plot(T, best_mean.detach().numpy(), color='green', label='Prediction')
-    sub0.errorbar(T, best_mean.detach().numpy(), yerr=best_std.detach().numpy(), color='black', alpha=0.2)
+    sub1.plot(T, best_mean.detach().numpy(), color='green', label='Prediction', linewidth=2)
+    sub1.errorbar(T, best_mean.detach().numpy(), yerr=best_std.detach().numpy(), color='black', alpha=0.2)
 
     # set y-ticks for every 0.1 from -2.5 to 2.5, for two axes
     sub1.set_yticks(np.arange(-0.7, 0.7, 0.1))
@@ -240,12 +240,11 @@ def plot_results(best_mean, best_std, Y1, Y2, idx, condition_points, errors, los
 
     if test_dist:
         dist, i, num_validate = test_dist[0], test_dist[1], test_dist[2]
-        amplitudes = np.linspace(0.5,1.0, num_validate)
         Y = []
         for t in T:
-            Y.append(dist(amplitudes[i],t))
+            Y.append(dist(t))
         Y = np.flip(np.array(Y))
-        sub1.plot(T, Y, color="blue", label="Expected")
+        sub1.plot(T, Y, color="blue", label="Ground Truth")
 
     sub1.set_title('Inverse Trajectories and Best Prediction')
     sub1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -284,8 +283,7 @@ def plot_results_ii(best_mean, best_std, Y1, Y2, idx, condition_points, errors, 
         if i == 0:
             plt.plot(T, Y2[i], color='black', alpha=0.06, label = "Inverse Trajectories")
             continue
-        if i<96:
-            plt.plot(T, Y2[i], color='black', alpha=0.06)
+        plt.plot(T, Y2[i], color='black', alpha=0.06)
     
     ## add legend
     plt.plot(T, best_mean.detach().numpy(), color='green', label='Prediction')

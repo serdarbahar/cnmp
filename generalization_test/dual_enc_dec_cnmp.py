@@ -109,7 +109,7 @@ class DualEncoderDecoder(nn.Module):
     
 def get_training_sample(validation_indices, valid_inverses, unpaired_traj, X1, Y1, X2, Y2, OBS_MAX, d_N, d_x, d_y1, d_y2, time_len):
 
-    num_traj = torch.randint(20 ,25, (1,)) # random number of trajectories
+    num_traj = torch.randint(9, 10, (1,)) # random number of trajectories
 
     traj_multinom = torch.ones(d_N) # multinomial distribution for trajectories
     for i in validation_indices:
